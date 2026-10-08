@@ -2,6 +2,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { parseGrid, stripPositions, filterTeam } from '@/lib/parse';
+import { parseRosterGrid, buildAssignments, computeRoster } from '@/lib/roster';
 
 const FIELDS = ['lider', 'disc', 'total'];
 const TEAM_IDS = ['principal', 'next'];
@@ -11,7 +12,12 @@ const CODES_HINT = { principal: 'C18 y C28', next: 'C18J y C28J' };
 async function readExcel(file) {
   const XLSX = await import('xlsx');
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-  const out = { periodPrev: '', periodCurr: '', hombres: [], mujeres: [], sheets: [] };
+  for (const name of wb.SheetNames) {
+    const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+    const roster = parseRosterGrid(grid);
+    if (roster && roster.rows.length) return { ...roster, sheets: [name] };
+  }
+  const out = { kind: 'tabla', periodPrev: '', periodCurr: '', hombres: [], mujeres: [], sheets: [] };
   const seen = new Set();
   for (const name of wb.SheetNames) {
     const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
@@ -29,7 +35,7 @@ async function readExcel(file) {
     }
     if (added) out.sheets.push(name);
   }
-  if (!seen.size) throw new Error('No encontré la tabla en el Excel. Debe tener las columnas COD, NOMBRE, LOGRO, LIDER, DISC y TOTAL.');
+  if (!seen.size) throw new Error('No reconozco el formato del Excel. Debe ser la lista de matriculados (GRUPO, ALUMNO, CURSO) o la tabla de avance (COD, LOGRO, LIDER, DISC, TOTAL).');
   return out;
 }
 
@@ -96,6 +102,56 @@ function TeamReview({ label, team, d }) {
   );
 }
 
+function RosterReview({ parsed, assigned, choices, setChoice, leaders, counted }) {
+  const byCode = new Map(leaders.map((l) => [l.cod, l]));
+  const leaderRows = assigned.filter((r) => r.children.length);
+  const outside = assigned.filter((r) => !r.inNetwork).length;
+  const pending = leaderRows.filter((r) => !r.auto && (choices[r.i] ?? r.def) === 'ignore').length;
+  return (
+    <div className="roster">
+      <p className="diff-sum">
+        Lista de matriculados{parsed.period ? ` del periodo ${parsed.period}` : ''}: {parsed.rows.length} registros,
+        {' '}{counted} contados en la red{outside ? `, ${outside} de grupos que no son de la red (no se cuentan)` : ''}.
+      </p>
+      <h3>Líderes matriculados</h3>
+      <p className="muted">
+        Los líderes se matriculan en el grupo de su red (C18, C28, C18J, C28J) y los identifico por nombre.
+        Revisa la columna &quot;Cuenta como&quot; y corrige si hace falta.
+        {pending ? ` Hay ${pending} sin identificar.` : ''}
+      </p>
+      <div className="sheet-scroll">
+        <table className="diff roster-table">
+          <thead>
+            <tr><th>GRUPO</th><th>ALUMNO</th><th>CURSO</th><th>CUENTA COMO</th></tr>
+          </thead>
+          <tbody>
+            {leaderRows.map((r) => {
+              const val = choices[r.i] ?? r.def;
+              return (
+                <tr key={r.i} className={!r.auto ? 'is-pending' : ''}>
+                  <td>{r.grupo}</td>
+                  <td className="c-name">{r.alumno}</td>
+                  <td className="c-curso">{r.curso}</td>
+                  <td>
+                    <select value={val} onChange={(e) => setChoice(r.i, e.target.value)}>
+                      {r.children.map((l) => (
+                        <option key={l.cod} value={l.cod}>Líder {l.cod} {byCode.get(l.cod)?.nombre}</option>
+                      ))}
+                      {r.isLeaderGroup && <option value="disc">Discípulo de {r.grupo}</option>}
+                      <option value="ignore">No contar</option>
+                    </select>
+                    {r.ambiguous && <span className="tag">varios posibles</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function UploadPanel({ data, uploadKeyRequired }) {
   const router = useRouter();
   const inputRef = useRef(null);
@@ -105,13 +161,28 @@ export default function UploadPanel({ data, uploadKeyRequired }) {
   const [status, setStatus] = useState({ type: 'idle' });
   const [key, setKey] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [choices, setChoices] = useState({});
+
+  const leaders = useMemo(() => TEAM_IDS.flatMap((t) => (data[t] && !data[t].error
+    ? [...data[t].hombres, ...data[t].mujeres].map((r) => ({ cod: r.cod, nombre: r.nombre, team: t }))
+    : [])), [data]);
+
+  const assigned = useMemo(
+    () => (parsed?.kind === 'lista' ? buildAssignments(parsed.rows, leaders) : null),
+    [parsed, leaders],
+  );
+  const roster = useMemo(
+    () => (assigned ? computeRoster(assigned, leaders, choices) : null),
+    [assigned, leaders, choices],
+  );
 
   const diffs = useMemo(() => {
     if (!parsed) return null;
+    const source = roster || parsed;
     const o = {};
-    TEAM_IDS.forEach((t) => { o[t] = teamDiff(parsed, t, data[t]); });
+    TEAM_IDS.forEach((t) => { o[t] = teamDiff(source, t, data[t]); });
     return o;
-  }, [parsed, data]);
+  }, [parsed, roster, data]);
 
   const totalChanges = diffs ? TEAM_IDS.reduce((s, t) => s + diffs[t].changed.length, 0) : 0;
   const totalRows = diffs ? TEAM_IDS.reduce((s, t) => s + diffs[t].rows.length, 0) : 0;
@@ -121,6 +192,7 @@ export default function UploadPanel({ data, uploadKeyRequired }) {
     if (!f) return;
     setFile(f);
     setParsed(null);
+    setChoices({});
     setSaved(false);
     setStatus({ type: 'busy', msg: 'Leyendo archivo…' });
     try {
@@ -170,6 +242,7 @@ export default function UploadPanel({ data, uploadKeyRequired }) {
       if (!res.ok) throw new Error('No se pudo actualizar el dashboard.');
       router.refresh();
       setParsed(null);
+      setChoices({});
       setFile(null);
       setSaved(false);
       setStatus({ type: 'ok', msg: 'Dashboard actualizado. Revisa las pestañas Equipo Principal y Equipo Next.' });
@@ -193,8 +266,8 @@ export default function UploadPanel({ data, uploadKeyRequired }) {
           <input ref={inputRef} type="file" hidden accept=".xlsx,.xls,.csv,.pdf"
             onChange={(e) => { handleFile(e.target.files[0]); e.target.value = ''; }} />
           <p className="drop-help">
-            Un solo archivo actualiza los dos equipos: Principal (C18 y C28) y Next (C18J y C28J).
-            Solo se actualizan LIDER, DISC y TOTAL. El PDF debe venir exportado desde Excel, no escaneado.
+            Sube la &quot;Lista de Personas Matriculadas a Escuela&quot; (PDF o Excel). Un solo archivo actualiza
+            los dos equipos: Principal (C18 y C28) y Next (C18J y C28J). Solo se actualizan LIDER, DISC y TOTAL.
           </p>
           {file && <p className="drop-file">{file.name}</p>}
         </div>
@@ -204,6 +277,23 @@ export default function UploadPanel({ data, uploadKeyRequired }) {
         <section className="upload-step">
           <h2>2. Revisa los cambios</h2>
           {parsed.sheets?.length > 0 && <p className="muted">Hojas leídas: {parsed.sheets.join(', ')}.</p>}
+          {roster && (
+            <RosterReview
+              parsed={parsed}
+              assigned={assigned}
+              choices={choices}
+              setChoice={(i, v) => { setChoices((c) => ({ ...c, [i]: v })); setSaved(false); }}
+              leaders={leaders}
+              counted={roster.counted}
+            />
+          )}
+          {roster && TEAM_IDS.some((t) => parsed.period && data[t]?.periodCurr && data[t].periodCurr !== parsed.period) && (
+            <p className="warn">
+              La lista es del periodo {parsed.period}. {TEAM_IDS.filter((t) => data[t]?.periodCurr && data[t].periodCurr !== parsed.period)
+                .map((t) => `${data[t].label} muestra ${data[t].periodCurr}`).join('; ')}. Los conteos se guardarán igual en LIDER, DISC y TOTAL.
+            </p>
+          )}
+          {roster && <h3 className="sub-h">Resultado por líder</h3>}
           {totalRows === 0 && <p className="warn">El archivo no tiene códigos de líderes de ningún equipo.</p>}
           <div className="reviews">
             {TEAM_IDS.map((t) => <TeamReview key={t} team={t} label={data[t].label} d={diffs[t]} />)}

@@ -8,6 +8,11 @@ Dashboard público (sin login) en Vercel. Lee y escribe los Excel de Google Driv
 ## Cómo funciona
 
 - Drive es la única fuente de datos. En la pestaña **Subir archivo**, un solo Excel o PDF actualiza los dos equipos.
+- Formato principal: **Lista de Personas Matriculadas a Escuela** (PDF o Excel del sistema). El dashboard cuenta por código de grupo:
+  - LIDER: el líder matriculado (aparece en el grupo C18, C28, C18J o C28J y se identifica por nombre).
+  - DISC: matriculados del grupo del líder (ej. grupo C186 → DISC de C186). C18J y C28J del Equipo Principal suman además todos los subgrupos Next.
+  - TOTAL = LIDER + DISC. Antes de guardar puedes corregir a qué líder corresponde cada matriculado.
+- También acepta la tabla de avance (COD, LOGRO, LIDER, DISC, TOTAL).
 - Flujo: subir archivo > revisar cambios por equipo > **Guardar en Drive** > **Actualizar dashboard**. No hay actualización programada.
 - Solo se actualizan **LIDER, DISC y TOTAL** por código. LOGRO, nombres, formatos y fórmulas del Excel no se tocan.
 - Equipo Principal: líderes C18x (hombres) y C28x (mujeres), ej. C181, C18A, C28J.
