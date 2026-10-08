@@ -137,7 +137,7 @@ function RosterReview({ parsed, assigned, choices, setChoice, leaders, counted }
                       {r.children.map((l) => (
                         <option key={l.cod} value={l.cod}>Líder {l.cod} {byCode.get(l.cod)?.nombre}</option>
                       ))}
-                      {r.isLeaderGroup && <option value="disc">Discípulo de {r.grupo}</option>}
+                      {r.discOf && <option value="disc">Discípulo de {r.discOf}</option>}
                       <option value="ignore">No contar</option>
                     </select>
                     {r.ambiguous && <span className="tag">varios posibles</span>}
