@@ -5,6 +5,7 @@ import { parseGrid, stripPositions, filterTeam } from '@/lib/parse';
 import { parseRosterGrid, buildAssignments, computeRoster } from '@/lib/roster';
 
 const FIELDS = ['lider', 'disc', 'total'];
+const isPdf = (f) => !!f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
 const TEAM_IDS = ['principal', 'next'];
 const CODES_HINT = { principal: 'C18 y C28', next: 'C18J y C28J' };
 
@@ -196,9 +197,8 @@ export default function UploadPanel({ data, uploadKeyRequired }) {
     setSaved(false);
     setStatus({ type: 'busy', msg: 'Leyendo archivo…' });
     try {
-      const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
       let p;
-      if (isPdf) {
+      if (isPdf(f)) {
         const { parsePdf } = await import('@/lib/pdf');
         p = await parsePdf(await f.arrayBuffer());
       } else {
@@ -228,6 +228,17 @@ export default function UploadPanel({ data, uploadKeyRequired }) {
         return r.ok ? `${data[t].label}: ${r.updated} líderes actualizados` : `${data[t].label}: error, ${r.error}`;
       });
       if (!out.ok) throw new Error(parts.join('. '));
+      if (parsed.kind === 'lista') {
+        // Solo se envían GRUPO, ALUMNO y CURSO (sin DNI, celular ni correo).
+        const rows = parsed.rows.map(({ grupo, alumno, curso }) => ({ grupo, alumno, curso }));
+        const pr = await fetch('/api/detalle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-upload-key': key },
+          body: JSON.stringify({ period: parsed.period, fileName: file?.name, rows }),
+        });
+        const po = await pr.json().catch(() => ({}));
+        parts.push(po.ok ? `Detalle Inscritos: ${po.count} matriculados` : `el detalle no se guardó (${po.error || pr.status})`);
+      }
       setSaved(true);
       setStatus({ type: 'ok', msg: `Guardado en Drive. ${parts.join('. ')}. Ahora presiona Actualizar dashboard.` });
     } catch (e) {
@@ -313,7 +324,7 @@ export default function UploadPanel({ data, uploadKeyRequired }) {
           <button
             className="btn-primary"
             onClick={saveToDrive}
-            disabled={busy || !diffs || saved || !totalChanges || (uploadKeyRequired && !key)}
+            disabled={busy || !diffs || saved || (!totalChanges && parsed?.kind !== 'lista') || (uploadKeyRequired && !key)}
           >
             {saved ? 'Guardado en Drive ✓' : 'Guardar en Drive'}
           </button>
@@ -322,7 +333,7 @@ export default function UploadPanel({ data, uploadKeyRequired }) {
           </button>
         </div>
         <p className="muted step-help">
-          {diffs && !totalChanges && !saved
+          {diffs && !totalChanges && !saved && parsed?.kind !== 'lista'
             ? 'No hay cambios que guardar.'
             : 'Primero guarda en Drive. Luego presiona Actualizar dashboard para ver los nuevos datos.'}
         </p>

@@ -10,6 +10,7 @@
     "predev": "node scripts/copy-pdfjs.mjs"
   },
   "dependencies": {
+    "@vercel/blob": "2.8.1",
     "exceljs": "4.4.0",
     "google-auth-library": "9.15.1",
     "next": "14.2.33",

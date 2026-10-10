@@ -2,15 +2,18 @@
 import { useState } from 'react';
 import TeamView from './TeamView';
 import UploadPanel from './UploadPanel';
+import DetalleView from './DetalleView';
 import { fecha } from './format';
 
 const TABS = [
   { id: 'principal', label: 'Equipo Principal' },
   { id: 'next', label: 'Equipo Next' },
+  { id: 'detalle', label: 'Detalle Inscritos' },
   { id: 'upload', label: 'Subir archivo' },
 ];
 
-export default function Dashboard({ principal, next, uploadKeyRequired }) {
+export default function Dashboard({ principal, next, uploadKeyRequired, detalleKeyRequired }) {
+  const [detalleKey, setDetalleKey] = useState('');
   const [tab, setTab] = useState('principal');
   const data = { principal, next };
   const current = data[tab];
@@ -50,7 +53,10 @@ export default function Dashboard({ principal, next, uploadKeyRequired }) {
       </nav>
 
       <main>
-        {tab === 'upload' ? (
+        {tab === 'detalle' && (
+          <DetalleView keyRequired={detalleKeyRequired} savedKey={detalleKey} onKey={setDetalleKey} />
+        )}
+        {tab === 'detalle' ? null : tab === 'upload' ? (
           <UploadPanel data={data} uploadKeyRequired={uploadKeyRequired} />
         ) : (
           <TeamView key={tab} data={current} />

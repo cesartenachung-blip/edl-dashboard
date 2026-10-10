@@ -21,6 +21,13 @@ Dashboard público (sin login) en Vercel. Lee y escribe los Excel de Google Driv
 - Códigos que no existen en Drive no se agregan: se avisa para que primero crees la fila en el Excel.
 - Drive guarda versiones anteriores del archivo (clic derecho > Administrar versiones) por si necesitas revertir.
 
+## Detalle Inscritos
+- Muestra solo **GRUPO, ALUMNO y CURSO** de la última lista de matriculados subida, con buscador y filtros.
+- No se guarda el PDF, ni DNI, celulares o correos. El código de miembro al final del nombre también se quita.
+- Se guarda en Vercel Blob (no en Drive) al presionar **Guardar en Drive**, y reemplaza la lista anterior.
+- Configuración (una vez): Vercel > tu proyecto > **Storage** > **Create** > **Blob** > conectar al proyecto > **Redeploy**.
+- `DETALLE_KEY` es opcional.
+
 ## Puesta en marcha (una sola vez)
 
 ### 1. Cuenta de servicio de Google

@@ -169,3 +169,22 @@ table.diff th { background: var(--brand-deep); }
 .roster-table select { font: inherit; font-size: .88rem; padding: 4px 6px; border: 1px solid var(--line); max-width: 280px; }
 .roster-table tr.is-pending td { background: var(--warn-bg); }
 .tag { margin-left: 6px; font-size: .75rem; background: #ffe2a8; padding: 2px 6px; }
+
+/* Detalle Inscritos */
+.detalle { display: grid; gap: 18px; }
+.det-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 14px; background: var(--card); border: 1px solid var(--line); border-top: 6px solid var(--brand); padding: 16px 20px; }
+.det-head h2 { margin: 0; font-family: var(--cond); font-size: 1.6rem; }
+.det-head p { margin: 4px 0 0; }
+.det-stats { display: flex; gap: 26px; margin: 0; }
+.det-stats div { text-align: right; }
+.det-stats dt { font-size: .82rem; color: var(--ink-2); }
+.det-stats dd { margin: 0; font-family: var(--cond); font-weight: 700; font-size: 2rem; line-height: 1; color: var(--brand); }
+.det-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px; border-bottom: 1px solid var(--line); }
+.det-filters input, .det-filters select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); background: #fff; max-width: 100%; }
+.det-filters input { flex: 1 1 260px; }
+.det-scroll { max-height: 75vh; overflow: auto; }
+.det-table thead th { position: sticky; top: 0; z-index: 1; background: var(--brand-deep); }
+.det-table td { font-size: .88rem; }
+.det-table .c-curso { color: var(--ink-2); }
+.key-gate { max-width: 560px; }
+@media (max-width: 760px) { .det-stats { gap: 16px; } .det-stats dd { font-size: 1.5rem; } .det-table td.c-name { white-space: normal; } }
